@@ -1,6 +1,8 @@
 package main
 
 import (
+	"fmt"
+	"log"
 	"strings"
 
 	"golang.org/x/net/html"
@@ -15,26 +17,32 @@ func getAbsolutePath(url, baseURL string) string {
 }
 
 func getURLsFromHTML(htmlBody, rawBaseURL string) (urls []string, err error) {
-	r := strings.NewReader(htmlBody)
-	z := html.NewTokenizer(r)
+	urls = []string{}
 
-	for {
-		tt := z.Next()
-		switch tt {
-		case html.ErrorToken:
-			return urls, nil
-		case html.StartTagToken, html.EndTagToken:
-			tn, _ := z.TagName()
+	doc, err := html.Parse(strings.NewReader(htmlBody))
+	if err != nil {
+		log.Fatal(err)
+		return nil, fmt.Errorf("failed to parase HTML body: %s", err)
+	}
 
-			if string(tn) == "a" {
-				key, url, _ := z.TagAttr()
-				if string(key) == "href" {
-					absoluteURL := getAbsolutePath(string(url), rawBaseURL)
-					urls = append(urls, absoluteURL)
+	var f func(*html.Node)
+	f = func(n *html.Node) {
+		if n.Type == html.ElementNode && n.Data == "a" {
+			for _, a := range n.Attr {
+				if a.Key == "href" {
+					url := getAbsolutePath(a.Val, rawBaseURL)
+					urls = append(urls, url)
+					break
 				}
 			}
 		}
+		for c := n.FirstChild; c != nil; c = c.NextSibling {
+			f(c)
+		}
 	}
+	f(doc)
+
+	return urls, nil
 }
 
 func main() {

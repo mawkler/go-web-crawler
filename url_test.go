@@ -71,6 +71,39 @@ func TestGetURLsFromHTML(t *testing.T) {
 			`,
 			expected: []string{"https://blog.boot.dev/path/one", "https://other.com/path/one"},
 		},
+		{
+			name:     "no anchor tags",
+			inputURL: "https://blog.boot.dev",
+			inputBody: `
+				<html>
+					<body>
+						<div href="/path/one">
+							beep boop
+						</div>
+					</body>
+				</html>
+			`,
+			expected: []string{},
+		},
+		{
+			name:      "empty HTML body",
+			inputURL:  "https://blog.boot.dev",
+			inputBody: "",
+			expected:  []string{},
+		},
+		{
+			name:     "doesn't normalize URLs",
+			inputURL: "https://blog.boot.dev",
+			inputBody: `
+				<html>
+					<body>
+						<a href="/path/one    ">
+						</a>
+					</body>
+				</html>
+			`,
+			expected: []string{"https://blog.boot.dev/path/one    "},
+		},
 	}
 
 	for i, tc := range tests {
