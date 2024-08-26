@@ -102,7 +102,7 @@ func TestGetURLsFromHTML(t *testing.T) {
 					</body>
 				</html>
 			`,
-			expected: []string{"https://blog.boot.dev/path/one    "},
+			expected: []string{"https://blog.boot.dev/path/one%20%20%20%20"},
 		},
 	}
 
