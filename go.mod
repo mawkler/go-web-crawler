@@ -1,4 +1,4 @@
-module crawler
+module github.com/mawkler/go-web-crawler
 
 go 1.23.0
 
