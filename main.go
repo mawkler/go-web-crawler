@@ -2,12 +2,38 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"log"
+	"net/http"
 	"net/url"
+	"os"
 	"strings"
 
 	"golang.org/x/net/html"
 )
+
+func getHTML(rawURL string) (string, error) {
+	response, err := http.Get(rawURL)
+	if err != nil {
+		return "", fmt.Errorf("failed to get %s: %s", rawURL, err)
+	}
+
+	if response.StatusCode >= 400 {
+		return "", fmt.Errorf("failed to get %s: status code %d", rawURL, response.StatusCode)
+	}
+
+	contentType := response.Header.Get("content-type")
+	if !strings.HasPrefix(contentType, "text/html") {
+		return "", fmt.Errorf("invalid response content-type. Expected text/html, got: %s", contentType)
+	}
+
+	html, err := io.ReadAll(response.Body)
+	if err != nil {
+		return "", fmt.Errorf("failed to read response body: %s", err)
+	}
+
+	return string(html), nil
+}
 
 func getURLsFromHTML(htmlBody, rawBaseURL string) (urls []string, err error) {
 	urls = []string{}
@@ -49,5 +75,23 @@ func getURLsFromHTML(htmlBody, rawBaseURL string) (urls []string, err error) {
 }
 
 func main() {
-	println("Hello, World!")
+	if len(os.Args) < 2 {
+		fmt.Println("no website provided")
+		os.Exit(1)
+	}
+	if len(os.Args) > 2 {
+		fmt.Println("too many arguments provided")
+		os.Exit(1)
+	}
+
+	url := os.Args[1]
+
+	fmt.Printf("starting crawl of: %s\n", url)
+
+	html, err := getHTML(url)
+	if err != nil {
+		log.Default().Fatalf("failed to get HTML for URL %s: %s", url, err)
+	}
+
+	fmt.Println(html)
 }
