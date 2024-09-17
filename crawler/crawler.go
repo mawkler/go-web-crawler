@@ -3,9 +3,35 @@ package crawler
 import (
 	"fmt"
 	"net/url"
+	"sync"
 
 	"github.com/mawkler/go-web-crawler/internal"
 )
+
+type Crawler struct {
+	pages              map[string]int
+	baseURL            *url.URL
+	mu                 *sync.Mutex
+	concurrencyControl chan struct{}
+	wg                 *sync.WaitGroup
+}
+
+func NewCrawler(baseURL *url.URL, concurrencyControl chan struct{}, wg *sync.WaitGroup) Crawler {
+	pages := map[string]int{}
+	mu := &sync.Mutex{}
+	return Crawler{pages, baseURL, mu, concurrencyControl, wg}
+}
+
+func (cfg *Crawler) addPageVisit(normalizedURL string) bool {
+	_, exists := cfg.pages[normalizedURL]
+	if exists {
+		cfg.pages[normalizedURL]++
+	} else {
+		cfg.pages[normalizedURL] = 1
+	}
+
+	return exists
+}
 
 func PagesToString(pages map[string]int) string {
 	string := ""
@@ -31,13 +57,7 @@ func mergeMaps(map1, map2 map[string]int) map[string]int {
 	return mergedMap
 }
 
-func CrawlPage(rawBaseURL, rawCurrentURL string, pages map[string]int) (map[string]int, error) {
-	baseURL, err := url.Parse(rawBaseURL)
-	if err != nil {
-		fmt.Println(err)
-		return nil, fmt.Errorf("failed to parse base URL: %s", err)
-	}
-
+func (cfg *Crawler) CrawlPage(rawCurrentURL string) (map[string]int, error) {
 	currentURL, err := url.Parse(rawCurrentURL)
 	if err != nil {
 		fmt.Println(err)
@@ -45,8 +65,8 @@ func CrawlPage(rawBaseURL, rawCurrentURL string, pages map[string]int) (map[stri
 	}
 
 	// We only want to parse pages on the same domain
-	if currentURL.Host != baseURL.Host {
-		return pages, nil
+	if currentURL.Host != cfg.baseURL.Host {
+		return cfg.pages, nil
 	}
 
 	normalizedURL, err := internal.NormalizeURL(rawCurrentURL)
@@ -54,13 +74,10 @@ func CrawlPage(rawBaseURL, rawCurrentURL string, pages map[string]int) (map[stri
 		return nil, fmt.Errorf("failed to normalize URL %s: %s", rawCurrentURL, err)
 	}
 
-	_, exists := pages[normalizedURL]
-	if exists {
-		pages[normalizedURL] += 1
-		return pages, nil
+	firstVisit := cfg.addPageVisit(normalizedURL)
+	if firstVisit {
+		return cfg.pages, nil
 	}
-
-	pages[normalizedURL] = 1
 
 	html, err := internal.GetHTML(rawCurrentURL)
 	if err != nil {
@@ -75,14 +92,12 @@ func CrawlPage(rawBaseURL, rawCurrentURL string, pages map[string]int) (map[stri
 	}
 
 	for _, u := range urls {
-		// We don't need to merge the returned map with `pages` because
-		// CrawlPage() writes to `pages` as a side-effect
-		_, err := CrawlPage(rawBaseURL, u, pages)
+		_, err := cfg.CrawlPage(u)
 		if err != nil {
 			fmt.Println(err)
-			pages[normalizedURL] = -1
+			cfg.pages[normalizedURL] = -1
 		}
 	}
 
-	return pages, nil
+	return cfg.pages, nil
 }

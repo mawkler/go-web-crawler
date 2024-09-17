@@ -2,7 +2,9 @@ package main
 
 import (
 	"fmt"
+	"net/url"
 	"os"
+	"sync"
 
 	"github.com/mawkler/go-web-crawler/crawler"
 )
@@ -17,11 +19,21 @@ func main() {
 		os.Exit(1)
 	}
 
-	url := os.Args[1]
+	rawBaseURL := os.Args[1]
 
-	fmt.Printf("starting crawl of: %s\n", url)
+	fmt.Printf("starting crawl of: %s\n", rawBaseURL)
 
-	pages, err := crawler.CrawlPage(url, url, map[string]int{})
+	baseURL, err := url.Parse(rawBaseURL)
+	if err != nil {
+		fmt.Printf("failed to parse base URL: %s\n", err)
+		return
+	}
+
+	ch := make(chan struct{})
+	wg := &sync.WaitGroup{}
+	cr := crawler.NewCrawler(baseURL, ch, wg)
+
+	pages, err := cr.CrawlPage(rawBaseURL)
 	if err != nil {
 		fmt.Printf("Error: %s\n", err)
 		return
