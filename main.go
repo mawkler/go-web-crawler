@@ -29,15 +29,13 @@ func main() {
 		return
 	}
 
-	ch := make(chan struct{})
+	maxConcurrency := 10
+	ch := make(chan struct{}, maxConcurrency)
 	wg := &sync.WaitGroup{}
 	cr := crawler.NewCrawler(baseURL, ch, wg)
 
-	pages, err := cr.CrawlPage(rawBaseURL)
-	if err != nil {
-		fmt.Printf("Error: %s\n", err)
-		return
-	}
+	cr.CrawlPage(rawBaseURL)
+	wg.Wait()
 
-	fmt.Println(crawler.PagesToString(pages))
+	fmt.Println(crawler.PagesToString(cr.GetPages()))
 }
