@@ -14,12 +14,13 @@ type Crawler struct {
 	mu                 *sync.Mutex
 	concurrencyControl chan struct{}
 	wg                 *sync.WaitGroup
+	maxPages           int
 }
 
-func NewCrawler(baseURL *url.URL, concurrencyControl chan struct{}, wg *sync.WaitGroup) Crawler {
+func NewCrawler(baseURL *url.URL, concurrencyControl chan struct{}, wg *sync.WaitGroup, maxPages int) Crawler {
 	pages := map[string]int{}
 	mu := &sync.Mutex{}
-	return Crawler{pages, baseURL, mu, concurrencyControl, wg}
+	return Crawler{pages, baseURL, mu, concurrencyControl, wg, maxPages}
 }
 
 func (cfg *Crawler) GetPages() map[string]int {
@@ -64,6 +65,14 @@ func mergeMaps(map1, map2 map[string]int) map[string]int {
 	return mergedMap
 }
 
+// Name description
+func (cfg *Crawler) maxPagesReached() bool {
+	cfg.mu.Lock()
+	defer cfg.mu.Unlock()
+
+	return len(cfg.pages) >= cfg.maxPages
+}
+
 func (cfg *Crawler) CrawlPage(rawCurrentURL string) {
 	cfg.concurrencyControl <- struct{}{}
 
@@ -71,6 +80,11 @@ func (cfg *Crawler) CrawlPage(rawCurrentURL string) {
 		cfg.wg.Done()
 		<-cfg.concurrencyControl
 	}()
+
+	// Stop crawling if crawling limit reached
+	if cfg.maxPagesReached() {
+		return
+	}
 
 	currentURL, err := url.Parse(rawCurrentURL)
 	if err != nil {
