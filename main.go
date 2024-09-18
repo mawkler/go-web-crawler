@@ -49,6 +49,5 @@ func main() {
 	cr.CrawlPage(rawBaseURL)
 	wg.Wait()
 
-	println()
-	fmt.Println(crawler.PagesToString(cr.GetPages()))
+	fmt.Println(cr)
 }

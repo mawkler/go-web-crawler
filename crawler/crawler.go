@@ -3,6 +3,7 @@ package crawler
 import (
 	"fmt"
 	"net/url"
+	"sort"
 	"sync"
 
 	"github.com/mawkler/go-web-crawler/internal"
@@ -17,35 +18,58 @@ type Crawler struct {
 	maxPages           int
 }
 
+type page struct {
+	url   string
+	count int
+}
+
 func NewCrawler(baseURL *url.URL, concurrencyControl chan struct{}, wg *sync.WaitGroup, maxPages int) Crawler {
 	pages := map[string]int{}
 	mu := &sync.Mutex{}
 	return Crawler{pages, baseURL, mu, concurrencyControl, wg, maxPages}
 }
 
-func (cfg *Crawler) GetPages() map[string]int {
-	return cfg.pages
-}
+func (c *Crawler) addPageVisit(normalizedURL string) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
-func (cfg *Crawler) addPageVisit(normalizedURL string) bool {
-	cfg.mu.Lock()
-	defer cfg.mu.Unlock()
-
-	_, exists := cfg.pages[normalizedURL]
+	_, exists := c.pages[normalizedURL]
 	if exists {
-		cfg.pages[normalizedURL]++
+		c.pages[normalizedURL]++
 	} else {
-		cfg.pages[normalizedURL] = 1
+		c.pages[normalizedURL] = 1
 	}
 
 	return exists
 }
 
-func PagesToString(pages map[string]int) string {
-	string := ""
+func (c *Crawler) getSortedPages() []page {
+	pages := make([]page, 0, len(c.pages))
+	for url, count := range c.pages {
+		pages = append(pages, page{url, count})
+	}
 
-	for key, value := range pages {
-		string += fmt.Sprintf("%s: %d\n", key, value)
+	sort.Slice(pages, func(i, j int) bool {
+		return pages[i].count > pages[j].count
+	})
+
+	return pages
+}
+
+func (c Crawler) String() string {
+	title := fmt.Sprintf(" REPORT for %s ", c.baseURL)
+	lines := ""
+
+	for range len(title) {
+		lines += "="
+	}
+
+	string := fmt.Sprintf("%s\n%s\n%s\n\n", lines, title, lines)
+
+	pages := c.getSortedPages()
+
+	for _, p := range pages {
+		string += fmt.Sprintf("Found %d internal links to %s\n", p.count, p.url)
 	}
 
 	return string
@@ -66,23 +90,23 @@ func mergeMaps(map1, map2 map[string]int) map[string]int {
 }
 
 // Name description
-func (cfg *Crawler) pagesLength() int {
-	cfg.mu.Lock()
-	defer cfg.mu.Unlock()
+func (c *Crawler) pagesLength() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
-	return len(cfg.pages)
+	return len(c.pages)
 }
 
-func (cfg *Crawler) CrawlPage(rawCurrentURL string) {
-	cfg.concurrencyControl <- struct{}{}
+func (c *Crawler) CrawlPage(rawCurrentURL string) {
+	c.concurrencyControl <- struct{}{}
 
 	defer func() {
-		cfg.wg.Done()
-		<-cfg.concurrencyControl
+		c.wg.Done()
+		<-c.concurrencyControl
 	}()
 
 	// Stop crawling if crawling limit reached
-	if cfg.pagesLength() >= cfg.maxPages {
+	if c.pagesLength() >= c.maxPages {
 		return
 	}
 
@@ -93,7 +117,7 @@ func (cfg *Crawler) CrawlPage(rawCurrentURL string) {
 	}
 
 	// We only want to parse pages on the same domain
-	if currentURL.Host != cfg.baseURL.Host {
+	if currentURL.Host != c.baseURL.Host {
 		return
 	}
 
@@ -105,7 +129,7 @@ func (cfg *Crawler) CrawlPage(rawCurrentURL string) {
 
 	fmt.Printf("crawling %s\n", normalizedURL)
 
-	firstVisit := cfg.addPageVisit(normalizedURL)
+	firstVisit := c.addPageVisit(normalizedURL)
 	if firstVisit {
 		return
 	}
@@ -123,7 +147,7 @@ func (cfg *Crawler) CrawlPage(rawCurrentURL string) {
 	}
 
 	for _, u := range urls {
-		cfg.wg.Add(1)
-		go cfg.CrawlPage(u)
+		c.wg.Add(1)
+		go c.CrawlPage(u)
 	}
 }
