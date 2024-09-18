@@ -4,22 +4,34 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"strconv"
 	"sync"
 
 	"github.com/mawkler/go-web-crawler/crawler"
 )
 
 func main() {
-	if len(os.Args) < 2 {
-		fmt.Println("no website provided")
+	if len(os.Args) < 4 {
+		fmt.Println("Not enough arguments provided")
+		fmt.Println("usage: crawler <baseURL> <maxConcurrency> <maxPages>")
 		os.Exit(1)
 	}
-	if len(os.Args) > 2 {
+	if len(os.Args) > 4 {
 		fmt.Println("too many arguments provided")
 		os.Exit(1)
 	}
 
 	rawBaseURL := os.Args[1]
+	maxConcurrency, err := strconv.Atoi(os.Args[2])
+	if err != nil {
+		fmt.Println("maxConcurrency not an int")
+		os.Exit(1)
+	}
+	maxPages, err := strconv.Atoi(os.Args[3])
+	if err != nil {
+		fmt.Println("maxPages not an int")
+		os.Exit(1)
+	}
 
 	fmt.Printf("starting crawl of: %s\n", rawBaseURL)
 
@@ -29,8 +41,6 @@ func main() {
 		return
 	}
 
-	maxConcurrency := 50
-	maxPages := 1000
 	ch := make(chan struct{}, maxConcurrency)
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
@@ -39,5 +49,6 @@ func main() {
 	cr.CrawlPage(rawBaseURL)
 	wg.Wait()
 
+	println()
 	fmt.Println(crawler.PagesToString(cr.GetPages()))
 }

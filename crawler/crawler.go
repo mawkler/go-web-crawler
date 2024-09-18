@@ -66,11 +66,11 @@ func mergeMaps(map1, map2 map[string]int) map[string]int {
 }
 
 // Name description
-func (cfg *Crawler) maxPagesReached() bool {
+func (cfg *Crawler) pagesLength() int {
 	cfg.mu.Lock()
 	defer cfg.mu.Unlock()
 
-	return len(cfg.pages) >= cfg.maxPages
+	return len(cfg.pages)
 }
 
 func (cfg *Crawler) CrawlPage(rawCurrentURL string) {
@@ -82,7 +82,7 @@ func (cfg *Crawler) CrawlPage(rawCurrentURL string) {
 	}()
 
 	// Stop crawling if crawling limit reached
-	if cfg.maxPagesReached() {
+	if cfg.pagesLength() >= cfg.maxPages {
 		return
 	}
 
@@ -102,6 +102,8 @@ func (cfg *Crawler) CrawlPage(rawCurrentURL string) {
 		fmt.Printf("failed to normalize URL %s: %s\n", rawCurrentURL, err)
 		return
 	}
+
+	fmt.Printf("crawling %s\n", normalizedURL)
 
 	firstVisit := cfg.addPageVisit(normalizedURL)
 	if firstVisit {
