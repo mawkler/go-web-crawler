@@ -32,6 +32,7 @@ func main() {
 	maxConcurrency := 10
 	ch := make(chan struct{}, maxConcurrency)
 	wg := &sync.WaitGroup{}
+	wg.Add(1)
 	cr := crawler.NewCrawler(baseURL, ch, wg)
 
 	cr.CrawlPage(rawBaseURL)
